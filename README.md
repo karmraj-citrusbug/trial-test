@@ -110,7 +110,6 @@ docker-compose down
 
 1. **CORS Errors**: If you get CORS errors, make sure CORS is properly configured in the Flask backend as described above.
 2. **Port Conflicts**: If you have other services running on ports `3000` or `5000`, stop them or change the exposed ports in `docker-compose.yml`.
-3. **Flask Not Running**: Ensure that environment variables like `FLASK_APP` and `FLASK_ENV` are correctly set. If the backend doesn’t start, check the logs.
 
 ### Conclusion
 
