@@ -127,35 +127,67 @@ def get_folder_file_data():
         count_query = "SELECT COUNT(*) FROM gdrive_folders WHERE user = %s"
         total_folders = execute_count_query(connection, count_query, params=("devuser",))
 
-        # Query to get paginated folder data
-        folder_query = """
-            SELECT id, datetime, foldername, gdrive_url, folder_id, user, folderpath, project, icon_filename 
-            FROM gdrive_folders 
-            WHERE user = %s
-            LIMIT %s OFFSET %s
+        # Combined query to fetch folders and their corresponding files
+        combined_query = """
+        SELECT 
+            f.id AS folder_id, f.datetime AS folder_datetime, f.foldername, f.gdrive_url AS folder_gdrive_url, 
+            f.folder_id AS folder_folder_id, f.user AS folder_user, f.folderpath, f.project AS folder_project, 
+            f.icon_filename AS folder_icon_filename, 
+            s.id AS file_id, s.datetime AS file_datetime, s.filename, s.gdrive_url AS file_gdrive_url, 
+            s.file_id AS file_file_id, s.user AS file_user, s.folder AS file_folder, 
+            s.project AS file_project, s.icon_filename AS file_icon_filename
+        FROM gdrive_folders f
+        LEFT JOIN gdrive_status s ON s.folder LIKE CONCAT('%', f.folderpath, '%') 
+        WHERE f.user = %s
+        ORDER BY f.foldername, s.filename
         """
-        folders = execute_query(connection, folder_query, params=("devuser", limit, offset))
-        if folders is None:
-            raise Exception("Failed to fetch folder data")
+        # LIMIT %s OFFSET %s;
 
-        response_data = []
+        result = execute_query(connection, combined_query, params=("devuser", limit, offset))
+        if result is None:
+            raise Exception("Failed to fetch folder and file data")
 
-        for folder in folders:
-            folder = format_datetime(folder)
+        response_data = {}
+        # Group the files by their folders
+        for row in result:
+            folder_id = row["folder_id"]
 
-            # Query to get files for each folder
-            file_query = """
-                SELECT id, datetime, filename, gdrive_url, file_id, user, folder, project, icon_filename 
-                FROM gdrive_status 
-                WHERE folder LIKE %s
-            """
-            files = execute_query(connection, file_query, params=(f"%{folder['folderpath']}%",))
-            if files is None:
-                raise Exception("Failed to fetch file data")
+            if folder_id not in response_data:
+                folder_data = {
+                    "id": row["folder_id"],
+                    "datetime": row["folder_datetime"],
+                    "foldername": row["foldername"],
+                    "gdrive_url": row["folder_gdrive_url"],
+                    "folder_id": row["folder_folder_id"],
+                    "user": row["folder_user"],
+                    "folderpath": row["folderpath"],
+                    "project": row["folder_project"],
+                    "icon_filename": row["folder_icon_filename"],
+                    "files": [],
+                }
+                # Format folder datetime
+                folder_data = format_datetime(folder_data, datetime_key="datetime")
+                response_data[folder_id] = folder_data
 
-            # Format datetime for files
-            folder["files"] = [format_datetime(file) for file in files]
-            response_data.append(folder)
+            # Add the file data if it exists
+            if row["file_id"]:
+                file_data = {
+                    "id": row["file_id"],
+                    "datetime": row["file_datetime"],
+                    "filename": row["filename"],
+                    "gdrive_url": row["file_gdrive_url"],
+                    "file_id": row["file_file_id"],
+                    "user": row["file_user"],
+                    "folder": row["file_folder"],
+                    "project": row["file_project"],
+                    "icon_filename": row["file_icon_filename"],
+                }
+                # Format file datetime
+                file_data = format_datetime(file_data, datetime_key="datetime")
+                response_data[folder_id]["files"].append(file_data)
+
+        # Convert the response_data dictionary to a list of folders
+        response_data = list(response_data.values())
 
         return jsonify(
             {
