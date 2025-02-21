@@ -143,7 +143,8 @@ def get_folder_file_data():
         """
         # LIMIT %s OFFSET %s;
 
-        result = execute_query(connection, combined_query, params=("devuser", limit, offset))
+        result = execute_query(connection, combined_query, params=("devuser",))
+        # result = execute_query(connection, combined_query, params=("devuser", limit, offset))
         if result is None:
             raise Exception("Failed to fetch folder and file data")
 
